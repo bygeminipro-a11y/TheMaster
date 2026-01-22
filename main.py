@@ -46,9 +46,12 @@ def update_signal():
 # --- ฝั่ง Slave ดึงข้อมูล (GET) ---
 @app.route('/get_signal', methods=['GET'])
 def get_signal():
-    # ส่งข้อมูลล่าสุดกลับไป
-    return jsonify(current_signal), 200
+    # 1. เพิ่มบรรทัดเช็ค Token (เหมือน update_signal)
+    token = request.args.get('token')
+    
+    # ถ้า Token ไม่ตรงกับรหัสลับ ให้ดีดออก
+    if token != API_SECRET_KEY:
+        return jsonify({"status": "error", "message": "Unauthorized"}), 401
 
-if __name__ == '__main__':
-    # รันบน host 0.0.0.0 เพื่อให้เข้าถึงได้จากภายนอก
-    app.run(host='0.0.0.0', port=10000)
+    # ถ้าผ่าน ให้ส่งข้อมูลได้
+    return jsonify(current_signal), 200
