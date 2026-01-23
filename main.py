@@ -1,12 +1,12 @@
+import os
 from flask import Flask, request, jsonify
 
 app = Flask(__name__)
 
 # --- CONFIG ---
-# รหัสลับสำหรับ Master และ Slave ต้องตรงกัน
 API_SECRET_KEY = "MySuperSecretKey1234"
 
-# ตัวแปรเก็บสถานะล่าสุด (เริ่มมาเป็นสถานะรอ)
+# ตัวแปรเก็บสถานะ (Global)
 current_signal = {
     "type": "WAIT",
     "price": 0.0,
@@ -16,22 +16,22 @@ current_signal = {
 
 @app.route('/')
 def home():
-    return "RemiTrade Server is Running..."
+    return "RemiTrade Server is Running (OK)."
 
-# --- ฝั่ง Master ส่งข้อมูลมา (POST) ---
+# --- ฝั่ง Master ส่งข้อมูล (POST) ---
 @app.route('/update_signal', methods=['POST'])
 def update_signal():
-    # 1. เช็ค Token ว่าตรงไหม
+    # 1. เช็ค Token
     token = request.args.get('token')
     if token != API_SECRET_KEY:
         return jsonify({"status": "error", "message": "Unauthorized"}), 401
 
-    # 2. รับข้อมูล JSON
+    # 2. รับ JSON
     data = request.json
     if not data:
         return jsonify({"status": "error", "message": "No data"}), 400
 
-    # 3. อัปเดตข้อมูล
+    # 3. อัปเดต
     global current_signal
     current_signal = {
         "type": data.get('type'),
@@ -46,12 +46,14 @@ def update_signal():
 # --- ฝั่ง Slave ดึงข้อมูล (GET) ---
 @app.route('/get_signal', methods=['GET'])
 def get_signal():
-    # 1. เพิ่มบรรทัดเช็ค Token (เหมือน update_signal)
+    # 1. เช็ค Token (ต้องมี key ถึงจะดึงได้)
     token = request.args.get('token')
-    
-    # ถ้า Token ไม่ตรงกับรหัสลับ ให้ดีดออก
     if token != API_SECRET_KEY:
         return jsonify({"status": "error", "message": "Unauthorized"}), 401
 
-    # ถ้าผ่าน ให้ส่งข้อมูลได้
     return jsonify(current_signal), 200
+
+if __name__ == '__main__':
+    # ใช้ port จาก Env ของ Render หรือ default 10000
+    port = int(os.environ.get('PORT', 10000))
+    app.run(host='0.0.0.0', port=port)
