@@ -16,7 +16,7 @@ current_signal = {
 
 @app.route('/')
 def home():
-    return "RemiTrade Server is Running (OK)."
+    return "TheMaster Server is Running (OK)."
 
 # --- ฝั่ง Master ส่งข้อมูล (POST) ---
 @app.route('/update_signal', methods=['POST'])
@@ -57,3 +57,4 @@ if __name__ == '__main__':
     # ใช้ port จาก Env ของ Render หรือ default 10000
     port = int(os.environ.get('PORT', 10000))
     app.run(host='0.0.0.0', port=port)
+
