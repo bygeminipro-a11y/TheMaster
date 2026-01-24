@@ -29,7 +29,7 @@ memory_signal = {
 
 @app.route('/')
 def home():
-    return "RemiTrade Server is Running (Redis Mode)."
+    return "The Master Trade is Running"
 
 @app.route('/update_signal', methods=['POST'])
 def update_signal():
@@ -79,3 +79,4 @@ def get_signal():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 10000))
     app.run(host='0.0.0.0', port=port)
+
