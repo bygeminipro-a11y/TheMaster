@@ -8,6 +8,7 @@ API_SECRET_KEY = "MySuperSecretKey1234"
 
 # ตัวแปรเก็บสถานะ (Global)
 current_signal = {
+    "symbol": "",      # <--- เพิ่มตรงนี้
     "type": "WAIT",
     "price": 0.0,
     "timestamp": 0,
@@ -34,6 +35,7 @@ def update_signal():
     # 3. อัปเดต
     global current_signal
     current_signal = {
+        "symbol": data.get('symbol'), # <--- รับค่า symbol มาใส่
         "type": data.get('type'),
         "price": data.get('price'),
         "timestamp": data.get('timestamp'),
@@ -57,4 +59,5 @@ if __name__ == '__main__':
     # ใช้ port จาก Env ของ Render หรือ default 10000
     port = int(os.environ.get('PORT', 10000))
     app.run(host='0.0.0.0', port=port)
+
 
