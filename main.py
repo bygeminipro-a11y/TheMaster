@@ -1,14 +1,26 @@
 import os
+import json
 from flask import Flask, request, jsonify
+import redis
 
 app = Flask(__name__)
 
 # --- CONFIG ---
-API_SECRET_KEY = "MySuperSecretKey1234"
+API_SECRET_KEY = "MySuperSecretKey1234" # แก้เป็นรหัสของคุณ
+REDIS_URL = os.environ.get('REDIS_URL')
 
-# ตัวแปรเก็บสถานะ (Global)
-current_signal = {
-    "symbol": "",      # <--- เพิ่มตรงนี้
+# เชื่อมต่อ Redis
+r = None
+if REDIS_URL:
+    try:
+        r = redis.from_url(REDIS_URL)
+        print("✅ Connected to Redis")
+    except Exception as e:
+        print(f"⚠️ Redis Connection Error: {e}")
+
+# ตัวแปรสำรอง (กรณีไม่มี Redis)
+memory_signal = {
+    "symbol": "",
     "type": "WAIT",
     "price": 0.0,
     "timestamp": 0,
@@ -17,47 +29,53 @@ current_signal = {
 
 @app.route('/')
 def home():
-    return "TheMaster Server is Running (OK)."
+    return "RemiTrade Server is Running (Redis Mode)."
 
-# --- ฝั่ง Master ส่งข้อมูล (POST) ---
 @app.route('/update_signal', methods=['POST'])
 def update_signal():
-    # 1. เช็ค Token
     token = request.args.get('token')
     if token != API_SECRET_KEY:
         return jsonify({"status": "error", "message": "Unauthorized"}), 401
 
-    # 2. รับ JSON
     data = request.json
-    if not data:
-        return jsonify({"status": "error", "message": "No data"}), 400
-
-    # 3. อัปเดต
-    global current_signal
-    current_signal = {
-        "symbol": data.get('symbol'), # <--- รับค่า symbol มาใส่
+    new_signal = {
+        "symbol": data.get('symbol'),
         "type": data.get('type'),
         "price": data.get('price'),
         "timestamp": data.get('timestamp'),
         "ticket": data.get('ticket')
     }
-    
-    print(f"Updated: {current_signal}")
-    return jsonify({"status": "success", "data": current_signal}), 200
 
-# --- ฝั่ง Slave ดึงข้อมูล (GET) ---
+    # เก็บลง Redis (หรือตัวแปรสำรอง)
+    if r:
+        r.set('current_signal', json.dumps(new_signal))
+    else:
+        global memory_signal
+        memory_signal = new_signal
+    
+    print(f"Updated: {new_signal}")
+    return jsonify({"status": "success", "data": new_signal}), 200
+
 @app.route('/get_signal', methods=['GET'])
 def get_signal():
-    # 1. เช็ค Token (ต้องมี key ถึงจะดึงได้)
     token = request.args.get('token')
     if token != API_SECRET_KEY:
         return jsonify({"status": "error", "message": "Unauthorized"}), 401
 
-    return jsonify(current_signal), 200
+    # ดึงจาก Redis
+    current_data = None
+    if r:
+        raw_data = r.get('current_signal')
+        if raw_data:
+            current_data = json.loads(raw_data)
+    
+    # ถ้า Redis ไม่มีข้อมูล หรือพัง ให้ใช้ตัวแปรสำรอง
+    if not current_data:
+        global memory_signal
+        current_data = memory_signal
+
+    return jsonify(current_data), 200
 
 if __name__ == '__main__':
-    # ใช้ port จาก Env ของ Render หรือ default 10000
     port = int(os.environ.get('PORT', 10000))
     app.run(host='0.0.0.0', port=port)
-
-
