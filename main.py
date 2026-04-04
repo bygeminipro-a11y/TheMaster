@@ -43,12 +43,17 @@ def handle_disconnect():
 # --- เพิ่มช่องทางให้ Slave ดึงข้อมูลผ่าน WebRequest ---
 @app.route('/get_signal', methods=['GET'])
 def get_signal():
+    # 🚨 เพิ่มการเช็ค Token เหมือนฝั่ง Update
+    token = request.args.get('token')
+    secret_key = "MySuperSecretKey1234" # ควรใช้ค่าเดียวกับ Master
+    
+    if token != secret_key:
+        return jsonify({"error": "Unauthorized"}), 401
+
     try:
-        # ดึงข้อมูลออเดอร์ล่าสุดที่ Master ส่งมาเก็บไว้ใน Redis
         stored_data = redis_client.get('latest_signal')
         if stored_data:
-            data = json.loads(stored_data)
-            return jsonify(data), 200
+            return jsonify(json.loads(stored_data)), 200
         else:
             return jsonify({"symbol": "", "type": "WAIT", "ticket": 0}), 200
     except Exception as e:
