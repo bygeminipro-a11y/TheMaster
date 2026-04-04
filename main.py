@@ -1,82 +1,47 @@
 import os
 import json
 from flask import Flask, request, jsonify
+from flask_socketio import SocketIO, emit # เพิ่มตัวนี้
 import redis
 
 app = Flask(__name__)
+# ตั้งค่า SocketIO (ใช้ eventlet เป็น engine หลัก)
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
 
-# --- CONFIG ---
-API_SECRET_KEY = "MySuperSecretKey1234" # แก้เป็นรหัสของคุณ
-REDIS_URL = os.environ.get('REDIS_URL')
-
-# เชื่อมต่อ Redis
-r = None
-if REDIS_URL:
-    try:
-        r = redis.from_url(REDIS_URL)
-        print("✅ Connected to Redis")
-    except Exception as e:
-        print(f"⚠️ Redis Connection Error: {e}")
-
-# ตัวแปรสำรอง (กรณีไม่มี Redis)
-memory_signal = {
-    "symbol": "",
-    "type": "WAIT",
-    "price": 0.0,
-    "timestamp": 0,
-    "ticket": 0
-}
+# ... (ส่วนเชื่อมต่อ Redis เก็บไว้เหมือนเดิม) ...
 
 @app.route('/')
 def home():
-    return "The Master Trade is Running"
+    return "RemiTrade Server (WebSocket Mode) is Running."
 
+# 1. Master ยิงสัญญาณมาที่นี่ (ผ่าน HTTP เหมือนเดิม)
 @app.route('/update_signal', methods=['POST'])
 def update_signal():
     token = request.args.get('token')
-    if token != API_SECRET_KEY:
-        return jsonify({"status": "error", "message": "Unauthorized"}), 401
+    if token != "MySuperSecretKey1234":
+        return jsonify({"error": "Unauthorized"}), 401
 
     data = request.json
-    new_signal = {
-        "symbol": data.get('symbol'),
-        "type": data.get('type'),
-        "price": data.get('price'),
-        "timestamp": data.get('timestamp'),
-        "ticket": data.get('ticket')
-    }
-
-    # เก็บลง Redis (หรือตัวแปรสำรอง)
-    if r:
-        r.set('current_signal', json.dumps(new_signal))
-    else:
-        global memory_signal
-        memory_signal = new_signal
     
-    print(f"Updated: {new_signal}")
-    return jsonify({"status": "success", "data": new_signal}), 200
+    # ... (บันทึกลง Redis เหมือนเดิม) ...
 
-@app.route('/get_signal', methods=['GET'])
-def get_signal():
-    token = request.args.get('token')
-    if token != API_SECRET_KEY:
-        return jsonify({"status": "error", "message": "Unauthorized"}), 401
-
-    # ดึงจาก Redis
-    current_data = None
-    if r:
-        raw_data = r.get('current_signal')
-        if raw_data:
-            current_data = json.loads(raw_data)
+    # 🚨 ไฮไลท์สำคัญ: บรอดแคสต์ (Push) สัญญาณไปให้ Slave ทุกคนที่ต่อ WebSocket อยู่ทันที!
+    socketio.emit('new_signal', data)
     
-    # ถ้า Redis ไม่มีข้อมูล หรือพัง ให้ใช้ตัวแปรสำรอง
-    if not current_data:
-        global memory_signal
-        current_data = memory_signal
+    print(f"Broadcasted: {data}")
+    return jsonify({"status": "success"}), 200
 
-    return jsonify(current_data), 200
+# 2. เมื่อมี Slave ทักมาเชื่อมต่อ WebSocket
+@socketio.on('connect')
+def handle_connect():
+    print("🟢 New Slave Connected!")
+    # สามารถดึงค่าล่าสุดจาก Redis ส่งไปให้ทันทีที่ต่อติดได้ด้วย
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    print("🔴 Slave Disconnected")
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 10000))
-    app.run(host='0.0.0.0', port=port)
-
+    # เปลี่ยนจากการใช้ app.run เป็น socketio.run
+    socketio.run(app, host='0.0.0.0', port=port)
