@@ -40,7 +40,19 @@ def handle_connect():
 @socketio.on('disconnect')
 def handle_disconnect():
     print("🔴 Slave Disconnected")
-
+# --- เพิ่มช่องทางให้ Slave ดึงข้อมูลผ่าน WebRequest ---
+@app.route('/get_signal', methods=['GET'])
+def get_signal():
+    try:
+        # ดึงข้อมูลออเดอร์ล่าสุดที่ Master ส่งมาเก็บไว้ใน Redis
+        stored_data = redis_client.get('latest_signal')
+        if stored_data:
+            data = json.loads(stored_data)
+            return jsonify(data), 200
+        else:
+            return jsonify({"symbol": "", "type": "WAIT", "ticket": 0}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 10000))
     # เปลี่ยนจากการใช้ app.run เป็น socketio.run
