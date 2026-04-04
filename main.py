@@ -1,31 +1,29 @@
 from flask import Flask, request, jsonify
-import redis
-import os
-import json
 
 app = Flask(__name__)
 
-# เชื่อมต่อ Redis (ตัวแปรนี้แหละที่ Server ถามหา)
-redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379')
-redis_client = redis.from_url(redis_url)
+# ใช้ตัวแปรเก็บข้อมูลไว้ใน RAM ของเซิร์ฟเวอร์แทน Redis
+latest_signal_data = {"symbol": "", "type": "WAIT", "ticket": 0}
 
-# รหัสลับสำหรับตรวจสอบความปลอดภัย (ต้องตรงกับใน EA)
+# รหัสลับสำหรับตรวจสอบความปลอดภัย
 SECRET_KEY = "MySuperSecretKey1234"
 
 @app.route('/')
 def home():
-    return "MT5 Copy Trade Server is Running!"
+    return "MT5 Copy Trade Server is Running Perfectly!"
 
 @app.route('/update_signal', methods=['POST'])
 def update_signal():
+    global latest_signal_data
     token = request.args.get('token')
+    
     if token != SECRET_KEY:
         return jsonify({"error": "Unauthorized"}), 401
     
     data = request.json
     if data:
-        # บันทึกข้อมูลที่ Master ส่งมาลงใน Redis
-        redis_client.set('latest_signal', json.dumps(data))
+        # อัปเดตข้อมูลใหม่ลงใน RAM ทันที
+        latest_signal_data = data
         return jsonify({"status": "success"}), 200
         
     return jsonify({"error": "No data"}), 400
@@ -33,19 +31,12 @@ def update_signal():
 @app.route('/get_signal', methods=['GET'])
 def get_signal():
     token = request.args.get('token')
+    
     if token != SECRET_KEY:
         return jsonify({"error": "Unauthorized"}), 401
 
-    try:
-        # Slave ดึงข้อมูลล่าสุดจาก Redis
-        stored_data = redis_client.get('latest_signal')
-        if stored_data:
-            return jsonify(json.loads(stored_data)), 200
-        else:
-            return jsonify({"symbol": "", "type": "WAIT", "ticket": 0}), 200
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    # ส่งข้อมูลล่าสุดให้ Slave ทันที
+    return jsonify(latest_signal_data), 200
 
 if __name__ == '__main__':
-    # รันเซิร์ฟเวอร์
     app.run(host='0.0.0.0', port=10000)
