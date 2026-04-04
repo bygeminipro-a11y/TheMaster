@@ -2,41 +2,31 @@ from flask import Flask, request, jsonify
 
 app = Flask(__name__)
 
-# ใช้ตัวแปรเก็บข้อมูลไว้ใน RAM ของเซิร์ฟเวอร์แทน Redis
-latest_signal_data = {"symbol": "", "type": "WAIT", "ticket": 0}
-
-# รหัสลับสำหรับตรวจสอบความปลอดภัย
+# เก็บรายชื่อออเดอร์ทั้งหมดไว้ในหน่วยความจำ
+current_master_list = "EMPTY"
 SECRET_KEY = "MySuperSecretKey1234"
 
 @app.route('/')
 def home():
-    return "MT5 Copy Trade Server is Running Perfectly!"
+    return "MT5 Sync Server is Online!"
 
-@app.route('/update_signal', methods=['POST'])
-def update_signal():
-    global latest_signal_data
+@app.route('/update_list', methods=['POST'])
+def update_list():
+    global current_master_list
     token = request.args.get('token')
-    
     if token != SECRET_KEY:
-        return jsonify({"error": "Unauthorized"}), 401
+        return jsonify({"status": "unauthorized"}), 401
     
     data = request.json
-    if data:
-        # อัปเดตข้อมูลใหม่ลงใน RAM ทันที
-        latest_signal_data = data
-        return jsonify({"status": "success"}), 200
-        
-    return jsonify({"error": "No data"}), 400
+    current_master_list = data.get('master_list', "EMPTY")
+    return jsonify({"status": "updated"}), 200
 
 @app.route('/get_signal', methods=['GET'])
 def get_signal():
     token = request.args.get('token')
-    
     if token != SECRET_KEY:
-        return jsonify({"error": "Unauthorized"}), 401
-
-    # ส่งข้อมูลล่าสุดให้ Slave ทันที
-    return jsonify(latest_signal_data), 200
+        return jsonify({"status": "unauthorized"}), 401
+    return jsonify({"master_list": current_master_list}), 200
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=10000)
