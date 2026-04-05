@@ -8,7 +8,7 @@ SECRET_KEY = "MySuperSecretKey1234"
 
 @app.route('/')
 def home():
-    return "MT5 Sync Server is Online!"
+    return "."
 
 @app.route('/update_list', methods=['POST'])
 def update_list():
