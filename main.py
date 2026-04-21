@@ -1,32 +1,38 @@
-from flask import Flask, request, jsonify
+import socket
+import threading
 
-app = Flask(__name__)
+# ตั้งค่า IP และ Port (ต้องเปิด Port บน Firewall ของ Server ด้วย)
+HOST = '0.0.0.0'
+PORT = 9000
 
-# เก็บรายชื่อออเดอร์ทั้งหมดไว้ในหน่วยความจำ
-current_master_list = "EMPTY"
-SECRET_KEY = "MySuperSecretKey1234"
-
-@app.route('/')
-def home():
-    return "."
-
-@app.route('/update_list', methods=['POST'])
-def update_list():
-    global current_master_list
-    token = request.args.get('token')
-    if token != SECRET_KEY:
-        return jsonify({"status": "unauthorized"}), 401
+def handle_client(conn, addr):
+    print(f"เชื่อมต่อใหม่จาก: {addr}")
+    while True:
+        try:
+            # รอรับข้อมูลจาก Master หรือ Slave
+            data = conn.recv(1024)
+            if not data:
+                break
+            
+            message = data.decode('utf-8')
+            print(f"ได้รับ: {message}")
+            
+            # TODO: กระจายข้อมูลให้ Slave ทุกคนที่ต่อท่อค้างไว้
+            
+        except ConnectionResetError:
+            break
     
-    data = request.json
-    current_master_list = data.get('master_list', "EMPTY")
-    return jsonify({"status": "updated"}), 200
+    conn.close()
+    print(f"ยกเลิกการเชื่อมต่อ: {addr}")
 
-@app.route('/get_signal', methods=['GET'])
-def get_signal():
-    token = request.args.get('token')
-    if token != SECRET_KEY:
-        return jsonify({"status": "unauthorized"}), 401
-    return jsonify({"master_list": current_master_list}), 200
+# เปิด Server รอรับสาย
+server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+server.bind((HOST, PORT))
+server.listen(100) # รองรับคิว 100 คนพร้อมกัน
+print(f"เปิดเซิร์ฟเวอร์รอที่พอร์ต {PORT}...")
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=10000)
+while True:
+    conn, addr = server.accept()
+    # โยนงานให้ Thread ใหม่ดูแลลูกค้าแต่ละคน
+    thread = threading.Thread(target=handle_client, args=(conn, addr))
+    thread.start()
